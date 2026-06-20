@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RECURSION // ECHO</title>
+  <style>
+    :root {
+      --bg: #03040b;
+      --panel: rgba(3, 12, 18, 0.72);
+      --green: #33ff33;
+      --red: #ff3366;
+      --cyan: #00ffff;
+      --amber: #ffec66;
+      --muted: #7df8ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 45%, #071329 0%, #03040b 52%, #000 100%);
+      color: var(--green);
+      font-family: "Courier New", Courier, monospace;
+      letter-spacing: 0;
+      touch-action: none;
+      user-select: none;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(51, 255, 51, 0.035) 50%, rgba(0, 0, 0, 0.05) 50%),
+        linear-gradient(90deg, rgba(255, 51, 102, 0.015), rgba(0, 255, 255, 0.018), rgba(51, 255, 51, 0.015));
+      background-size: 100% 4px, 7px 100%;
+      mix-blend-mode: screen;
+      opacity: 0.55;
+      z-index: 4;
+    }
+
+    .shell {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: clamp(10px, 2.4vmin, 22px);
+    }
+
+    .hud,
+    .footer {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      border: 1px solid rgba(0, 255, 255, 0.35);
+      background: var(--panel);
+      box-shadow: 0 0 24px rgba(0, 255, 255, 0.11), inset 0 0 18px rgba(51, 255, 51, 0.035);
+      backdrop-filter: blur(8px);
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      min-height: 68px;
+    }
+
+    .cell {
+      padding: 12px clamp(9px, 2vw, 18px);
+      border-right: 1px solid rgba(0, 255, 255, 0.18);
+      min-width: 0;
+    }
+
+    .cell:last-child { border-right: 0; }
+
+    .label {
+      color: rgba(125, 248, 255, 0.72);
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .value {
+      margin-top: 4px;
+      color: var(--green);
+      font-size: clamp(16px, 2.8vmin, 24px);
+      font-weight: 700;
+      text-shadow: 0 0 9px rgba(51, 255, 51, 0.72);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .value.warn { color: var(--red); text-shadow: 0 0 9px rgba(255, 51, 102, 0.72); }
+    .value.cyan { color: var(--cyan); text-shadow: 0 0 9px rgba(0, 255, 255, 0.72); }
+
+    .stage-wrap {
+      position: relative;
+      width: min(92vmin, calc(100vw - 20px), 760px);
+      aspect-ratio: 1;
+      align-self: center;
+      justify-self: center;
+      border: 1px solid rgba(51, 255, 51, 0.82);
+      background: #040713;
+      box-shadow:
+        0 0 38px rgba(51, 255, 51, 0.18),
+        0 0 62px rgba(0, 255, 255, 0.1),
+        inset 0 0 42px rgba(0, 255, 255, 0.08);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: auto;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: clamp(18px, 5vmin, 46px);
+      background: rgba(0, 2, 8, 0.88);
+      z-index: 3;
+    }
+
+    .overlay.is-active { display: grid; }
+
+    .modal {
+      width: min(560px, 100%);
+      border: 1px solid currentColor;
+      color: var(--cyan);
+      background: rgba(1, 9, 15, 0.93);
+      padding: clamp(18px, 4vmin, 34px);
+      text-align: center;
+      box-shadow: 0 0 32px rgba(0, 255, 255, 0.22), inset 0 0 22px rgba(0, 255, 255, 0.08);
+    }
+
+    .modal h1 {
+      margin: 0 0 12px;
+      color: var(--red);
+      font-size: clamp(24px, 6vmin, 46px);
+      line-height: 1;
+      text-shadow: 0 0 18px currentColor;
+      word-break: break-word;
+    }
+
+    .modal p {
+      margin: 0 auto 22px;
+      max-width: 44ch;
+      color: #d9ffff;
+      font-size: clamp(14px, 2.3vmin, 18px);
+      line-height: 1.45;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid var(--green);
+      background: rgba(51, 255, 51, 0.06);
+      color: var(--green);
+      padding: 11px 18px;
+      font: 700 15px/1 "Courier New", Courier, monospace;
+      cursor: pointer;
+      box-shadow: 0 0 14px rgba(51, 255, 51, 0.16), inset 0 0 12px rgba(51, 255, 51, 0.06);
+    }
+
+    button:hover,
+    button:focus-visible {
+      outline: none;
+      background: var(--green);
+      color: #031008;
+      box-shadow: 0 0 22px rgba(51, 255, 51, 0.55);
+    }
+
+    .footer {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      color: rgba(217, 255, 255, 0.78);
+      font-size: clamp(11px, 1.8vmin, 13px);
+    }
+
+    .meter {
+      flex: 1;
+      height: 8px;
+      border: 1px solid rgba(0, 255, 255, 0.32);
+      background: rgba(0, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    .meter > i {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--amber), var(--red));
+      box-shadow: 0 0 14px rgba(51, 255, 51, 0.5);
+      transform-origin: left center;
+      transform: scaleX(1);
+    }
+
+    @media (max-width: 660px) {
+      .shell { grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; padding: 8px; }
+      .hud { grid-template-columns: repeat(2, 1fr); min-height: 96px; }
+      .cell:nth-child(2) { border-right: 0; }
+      .cell:nth-child(-n + 2) { border-bottom: 1px solid rgba(0, 255, 255, 0.18); }
+      .footer { align-items: flex-start; flex-direction: column; }
+      .meter { width: 100%; flex: none; }
+      .stage-wrap { width: min(96vw, 70vh); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hud" aria-label="Mission telemetry">
+      <div class="cell">
+        <div class="label">LOOP</div>
+        <div class="value" id="loopReadout">01 / 05</div>
+      </div>
+      <div class="cell">
+        <div class="label">TIME</div>
+        <div class="value warn" id="timeReadout">10.00</div>
+      </div>
+      <div class="cell">
+        <div class="label">DATA SHARDS</div>
+        <div class="value" id="shardReadout">0 / 3</div>
+      </div>
+      <div class="cell">
+        <div class="label">ECHOES</div>
+        <div class="value cyan" id="echoReadout">0 ACTIVE</div>
+      </div>
+    </section>
+
+    <section class="stage-wrap" id="stageWrap" aria-label="RECURSION // ECHO game surface">
+      <canvas id="gameCanvas" width="900" height="900"></canvas>
+      <div class="overlay is-active" id="overlay">
+        <div class="modal">
+          <h1 id="overlayTitle">RECURSION // ECHO</h1>
+          <p id="overlayMessage">Collect 3 data shards in each 10 second loop. Every success creates an Echo Clone. Never collide with drones or your own history.</p>
+          <button type="button" id="restartButton">INITIALIZE RUN</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer" aria-label="Controls and timer">
+      <span>WASD / ARROWS MOVE | POINTER DRAG SUPPORTED</span>
+      <div class="meter" aria-hidden="true"><i id="timeMeter"></i></div>
+      <span id="statusReadout">STATUS: STANDBY</span>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const stageWrap = document.getElementById("stageWrap");
+      const loopReadout = document.getElementById("loopReadout");
+      const timeReadout = document.getElementById("timeReadout");
+      const shardReadout = document.getElementById("shardReadout");
+      const echoReadout = document.getElementById("echoReadout");
+      const statusReadout = document.getElementById("statusReadout");
+      const timeMeter = document.getElementById("timeMeter");
+      const overlay = document.getElementById("overlay");
+      const overlayTitle = document.getElementById("overlayTitle");
+      const overlayMessage = document.getElementById("overlayMessage");
+      const restartButton = document.getElementById("restartButton");
+
+      const WORLD = 900;
+      const LOOP_DURATION = 10;
+      const MAX_LOOPS = 5;
+      const TARGET_SHARDS = 3;
+      const PLAYER_RADIUS = 15;
+      const ECHO_RADIUS = 15;
+      const DRONE_RADIUS = 24;
+      const SHARD_RADIUS = 14;
+      const ORIGIN = Object.freeze({ x: WORLD * 0.5, y: WORLD - 76 });
+      const PLAYER_SPEED = 365;
+      const POINTER_GAIN = 5.8;
+
+      const keys = new Set();
+      const echoes = [];
+      const currentHistory = [];
+      const shards = [];
+      const drones = [];
+      const sparks = [];
+
+      let player;
+      let loopNumber = 1;
+      let loopTime = 0;
+      let lastStamp = 0;
+      let runState = "menu";
+      let pointer = { active: false, x: ORIGIN.x, y: ORIGIN.y };
+      let rngState = 0x2f6e2b1;
+
+      function rand() {
+        rngState = (rngState * 1664525 + 1013904223) >>> 0;
+        return rngState / 4294967296;
+      }
+
+      function dist(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function resetPlayer() {
+        player = {
+          x: ORIGIN.x,
+          y: ORIGIN.y,
+          vx: 0,
+          vy: 0,
+          radius: PLAYER_RADIUS,
+          alivePulse: 0
+        };
+        pointer.x = player.x;
+        pointer.y = player.y;
+      }
+
+      function seedDrones() {
+        drones.length = 0;
+        const configs = [
+          { x: 168, y: 168, vx: 178, vy: 82, phase: 0.0 },
+          { x: 720, y: 256, vx: -214, vy: 118, phase: 1.6 },
+          { x: 274, y: 574, vx: 142, vy: -188, phase: 3.1 },
+          { x: 650, y: 656, vx: -120, vy: -150, phase: 4.4 }
+        ];
+        for (let i = 0; i < configs.length; i++) {
+          drones.push({
+            x: configs[i].x,
+            y: configs[i].y,
+            vx: configs[i].vx,
+            vy: configs[i].vy,
+            phase: configs[i].phase,
+            radius: DRONE_RADIUS
+          });
+        }
+      }
+
+      function spawnShards() {
+        shards.length = 0;
+        const candidates = [
+          { x: 132, y: 132 }, { x: 450, y: 118 }, { x: 768, y: 146 },
+          { x: 186, y: 344 }, { x: 454, y: 338 }, { x: 714, y: 342 },
+          { x: 132, y: 600 }, { x: 436, y: 608 }, { x: 760, y: 582 },
+          { x: 252, y: 752 }, { x: 640, y: 752 }
+        ];
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(rand() * (i + 1));
+          const temp = candidates[i];
+          candidates[i] = candidates[j];
+          candidates[j] = temp;
+        }
+        let index = 0;
+        while (shards.length < TARGET_SHARDS && index < candidates.length) {
+          const c = candidates[index++];
+          if (dist(c, ORIGIN) > 130) {
+            shards.push({ x: c.x, y: c.y, radius: SHARD_RADIUS, collected: false, phase: rand() * Math.PI * 2 });
+          }
+        }
+      }
+
+      function startRun() {
+        loopNumber = 1;
+        loopTime = 0;
+        echoes.length = 0;
+        currentHistory.length = 0;
+        sparks.length = 0;
+        rngState = (Date.now() ^ 0xa7f3c91) >>> 0;
+        resetPlayer();
+        seedDrones();
+        spawnShards();
+        runState = "playing";
+        overlay.classList.remove("is-active");
+        statusReadout.textContent = "STATUS: LIVE";
+        lastStamp = performance.now();
+        requestAnimationFrame(frame);
+      }
+
+      function finishRun(title, message, success) {
+        runState = success ? "victory" : "collapse";
+        overlayTitle.textContent = title;
+        overlayTitle.style.color = success ? "#33ff33" : "#ff3366";
+        overlayMessage.textContent = message;
+        restartButton.textContent = success ? "RUN AGAIN" : "RE-INITIALIZE TIMELINE";
+        overlay.classList.add("is-active");
+        statusReadout.textContent = success ? "STATUS: CLEAN EXIT" : "STATUS: TIMELINE COLLAPSE";
+      }
+
+      function advanceLoop() {
+        echoes.push(currentHistory.map((p) => ({ x: p.x, y: p.y })));
+        currentHistory.length = 0;
+        loopNumber += 1;
+        loopTime = 0;
+        resetPlayer();
+        seedDrones();
+        spawnShards();
+        statusReadout.textContent = "STATUS: REWIND COMPLETE";
+      }
+
+      function emitSparks(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+          const angle = rand() * Math.PI * 2;
+          const speed = 80 + rand() * 190;
+          sparks.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 0.42 + rand() * 0.32,
+            maxLife: 0.74,
+            color
+          });
+        }
+      }
+
+      function updateInput(dt) {
+        let ax = 0;
+        let ay = 0;
+        if (keys.has("arrowleft") || keys.has("a")) ax -= 1;
+        if (keys.has("arrowright") || keys.has("d")) ax += 1;
+        if (keys.has("arrowup") || keys.has("w")) ay -= 1;
+        if (keys.has("arrowdown") || keys.has("s")) ay += 1;
+
+        if (pointer.active) {
+          const dx = pointer.x - player.x;
+          const dy = pointer.y - player.y;
+          const mag = Math.sqrt(dx * dx + dy * dy);
+          if (mag > 4) {
+            ax += clamp(dx / 120, -1, 1) * POINTER_GAIN;
+            ay += clamp(dy / 120, -1, 1) * POINTER_GAIN;
+          }
+        }
+
+        const len = Math.sqrt(ax * ax + ay * ay);
+        if (len > 0) {
+          ax /= len;
+          ay /= len;
+        }
+
+        const targetVx = ax * PLAYER_SPEED;
+        const targetVy = ay * PLAYER_SPEED;
+        const follow = 1 - Math.pow(0.0007, dt);
+        player.vx += (targetVx - player.vx) * follow;
+        player.vy += (targetVy - player.vy) * follow;
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+        player.x = clamp(player.x, player.radius, WORLD - player.radius);
+        player.y = clamp(player.y, player.radius, WORLD - player.radius);
+        player.alivePulse += dt;
+      }
+
+      function updateDrones(dt) {
+        for (const d of drones) {
+          d.phase += dt * 3.4;
+          d.x += d.vx * dt;
+          d.y += d.vy * dt;
+          if (d.x < d.radius || d.x > WORLD - d.radius) {
+            d.x = clamp(d.x, d.radius, WORLD - d.radius);
+            d.vx *= -1;
+          }
+          if (d.y < d.radius || d.y > WORLD - d.radius) {
+            d.y = clamp(d.y, d.radius, WORLD - d.radius);
+            d.vy *= -1;
+          }
+        }
+      }
+
+      function updateSparks(dt) {
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const s = sparks[i];
+          s.life -= dt;
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+          s.vx *= Math.pow(0.05, dt);
+          s.vy *= Math.pow(0.05, dt);
+          if (s.life <= 0) sparks.splice(i, 1);
+        }
+      }
+
+      function recordPlayerFrame() {
+        currentHistory.push({
+          x: player.x,
+          y: player.y
+        });
+      }
+
+      function collisionChecks() {
+        for (let i = 0; i < drones.length; i++) {
+          if (dist(player, drones[i]) < player.radius + drones[i].radius) {
+            finishRun("TIMELINE COLLAPSED", "Paradox exception: live cursor intersected security firewall drone #" + (i + 1) + ".", false);
+            return;
+          }
+        }
+
+        const frameIndex = currentHistory.length - 1;
+        for (let i = 0; i < echoes.length; i++) {
+          const history = echoes[i];
+          const echo = history[Math.min(frameIndex, history.length - 1)];
+          if (echo && dist(player, echo) < player.radius + ECHO_RADIUS) {
+            const playerInOriginGate = dist(player, ORIGIN) < 42;
+            const echoInOriginGate = dist(echo, ORIGIN) < 42;
+            if (playerInOriginGate && echoInOriginGate && loopTime < 0.85) continue;
+            finishRun("TIMELINE COLLAPSED", "Paradox exception: live cursor crossed Echo Clone loop #" + (i + 1) + " at frame " + frameIndex + ".", false);
+            return;
+          }
+        }
+
+        for (const shard of shards) {
+          if (!shard.collected && dist(player, shard) < player.radius + shard.radius) {
+            shard.collected = true;
+            emitSparks(shard.x, shard.y, "#ffec66", 18);
+          }
+        }
+      }
+
+      function update(dt) {
+        loopTime += dt;
+        updateInput(dt);
+        updateDrones(dt);
+        updateSparks(dt);
+        recordPlayerFrame();
+        collisionChecks();
+
+        if (runState !== "playing") return;
+
+        const collected = shards.filter((s) => s.collected).length;
+        if (loopTime >= LOOP_DURATION) {
+          if (collected < TARGET_SHARDS) {
+            finishRun("TIMELINE COLLAPSED", "Paradox exception: loop expired with " + collected + " / " + TARGET_SHARDS + " data shards recovered.", false);
+          } else if (loopNumber >= MAX_LOOPS) {
+            finishRun("SYSTEM HACKED", "Five recursive loops resolved. Echo stack stable. No paradox intersections detected.", true);
+          } else {
+            advanceLoop();
+          }
+        }
+      }
+
+      function drawBackground(time) {
+        ctx.fillStyle = "#03040b";
+        ctx.fillRect(0, 0, WORLD, WORLD);
+
+        ctx.save();
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= WORLD; i += 45) {
+          const major = i % 180 === 0;
+          ctx.strokeStyle = major ? "rgba(0,255,255,0.16)" : "rgba(0,255,255,0.055)";
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, WORLD);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(WORLD, i);
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = "rgba(51,255,51,0.16)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(28, 28, WORLD - 56, WORLD - 56);
+
+        ctx.strokeStyle = "rgba(255,51,102,0.11)";
+        for (let y = 90; y < WORLD; y += 180) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + Math.sin(time + y) * 8);
+          ctx.lineTo(WORLD, y + Math.cos(time * 0.7 + y) * 8);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function drawShard(s, time) {
+        if (s.collected) return;
+        const r = s.radius + Math.sin(time * 5 + s.phase) * 2;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(time * 1.9 + s.phase);
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = "#ffec66";
+        ctx.strokeStyle = "#ffec66";
+        ctx.fillStyle = "rgba(255,236,102,0.18)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.25);
+        ctx.lineTo(r, 0);
+        ctx.lineTo(0, r * 1.25);
+        ctx.lineTo(-r, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawDrone(d) {
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.shadowBlur = 22;
+        ctx.shadowColor = "#ff3366";
+        ctx.strokeStyle = "#ff3366";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, d.radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.rotate(d.phase);
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          ctx.rotate(Math.PI / 2);
+          ctx.beginPath();
+          ctx.moveTo(d.radius * 0.55, 0);
+          ctx.lineTo(d.radius * 1.45, 0);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(255,51,102,0.18)";
+        ctx.beginPath();
+        ctx.arc(0, 0, d.radius * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawEchoes(time) {
+        const frameIndex = Math.max(0, currentHistory.length - 1);
+        for (let i = 0; i < echoes.length; i++) {
+          const history = echoes[i];
+          const echo = history[Math.min(frameIndex, history.length - 1)];
+          if (!echo) continue;
+
+          ctx.save();
+          ctx.shadowBlur = 18;
+          ctx.shadowColor = "#00ffff";
+          ctx.strokeStyle = "rgba(0,255,255,0.2)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          const start = Math.max(0, Math.min(frameIndex, history.length - 1) - 90);
+          for (let p = start; p <= Math.min(frameIndex, history.length - 1); p += 2) {
+            const pos = history[p];
+            if (p === start) ctx.moveTo(pos.x, pos.y);
+            else ctx.lineTo(pos.x, pos.y);
+          }
+          ctx.stroke();
+
+          ctx.globalAlpha = 0.52;
+          ctx.fillStyle = "rgba(0,255,255,0.26)";
+          ctx.strokeStyle = "#00ffff";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(echo.x, echo.y, ECHO_RADIUS + Math.sin(time * 6 + i) * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      function drawPlayer(time) {
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = "#33ff33";
+        ctx.strokeStyle = "#33ff33";
+        ctx.fillStyle = "rgba(51,255,51,0.22)";
+        ctx.lineWidth = 3;
+        const pulse = Math.sin(time * 10) * 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-24, 0);
+        ctx.lineTo(-8, 0);
+        ctx.moveTo(8, 0);
+        ctx.lineTo(24, 0);
+        ctx.moveTo(0, -24);
+        ctx.lineTo(0, -8);
+        ctx.moveTo(0, 8);
+        ctx.lineTo(0, 24);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawSparks() {
+        ctx.save();
+        for (const s of sparks) {
+          const a = clamp(s.life / s.maxLife, 0, 1);
+          ctx.globalAlpha = a;
+          ctx.shadowBlur = 14;
+          ctx.shadowColor = s.color;
+          ctx.fillStyle = s.color;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, 2 + a * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function draw() {
+        const time = performance.now() / 1000;
+        drawBackground(time);
+        drawEchoes(time);
+        for (const shard of shards) drawShard(shard, time);
+        for (const d of drones) drawDrone(d);
+        drawSparks();
+        drawPlayer(time);
+
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#00ffff";
+        ctx.strokeStyle = "rgba(0,255,255,0.36)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ORIGIN.x, ORIGIN.y, 28, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function updateUi() {
+        const remaining = Math.max(0, LOOP_DURATION - loopTime);
+        const collected = shards.filter((s) => s.collected).length;
+        loopReadout.textContent = String(loopNumber).padStart(2, "0") + " / 05";
+        timeReadout.textContent = remaining.toFixed(2);
+        shardReadout.textContent = collected + " / " + TARGET_SHARDS;
+        echoReadout.textContent = echoes.length + (echoes.length === 1 ? " ACTIVE" : " ACTIVE");
+        timeMeter.style.transform = "scaleX(" + clamp(remaining / LOOP_DURATION, 0, 1).toFixed(4) + ")";
+      }
+
+      function frame(stamp) {
+        if (runState !== "playing") {
+          draw();
+          updateUi();
+          return;
+        }
+        const dt = Math.min(0.05, Math.max(0, (stamp - lastStamp) / 1000));
+        lastStamp = stamp;
+        update(dt);
+        draw();
+        updateUi();
+        if (runState === "playing") requestAnimationFrame(frame);
+      }
+
+      function pointerToWorld(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: clamp(((event.clientX - rect.left) / rect.width) * WORLD, 0, WORLD),
+          y: clamp(((event.clientY - rect.top) / rect.height) * WORLD, 0, WORLD)
+        };
+      }
+
+      window.addEventListener("keydown", (event) => {
+        const key = event.key.toLowerCase();
+        if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d", " "].includes(key)) {
+          event.preventDefault();
+        }
+        if (key === " " && runState !== "playing") startRun();
+        keys.add(key);
+      }, { passive: false });
+
+      window.addEventListener("keyup", (event) => {
+        keys.delete(event.key.toLowerCase());
+      });
+
+      stageWrap.addEventListener("pointerdown", (event) => {
+        pointer.active = true;
+        const p = pointerToWorld(event);
+        pointer.x = p.x;
+        pointer.y = p.y;
+        stageWrap.setPointerCapture(event.pointerId);
+        if (runState !== "playing") startRun();
+      });
+
+      stageWrap.addEventListener("pointermove", (event) => {
+        if (!pointer.active) return;
+        const p = pointerToWorld(event);
+        pointer.x = p.x;
+        pointer.y = p.y;
+      });
+
+      window.addEventListener("pointerup", () => {
+        pointer.active = false;
+      });
+
+      restartButton.addEventListener("click", startRun);
+
+      resetPlayer();
+      seedDrones();
+      spawnShards();
+      draw();
+      updateUi();
+    })();
+  </script>
+</body>
+</html>
