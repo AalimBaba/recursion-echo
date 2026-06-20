@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RECURSION // ECHO</title>
+    <style>
+        body { margin: 0; background: #05050a; overflow: hidden; font-family: 'Courier New', monospace; color: #33ff33; }
+        #canvas-container { position: relative; width: 100vw; height: 100vw; max-width: 600px; max-height: 600px; margin: 40px auto; }
+        canvas { background: #0c0c16; border: 2px solid #33ff33; box-shadow: 0 0 20px rgba(51, 255, 51, 0.2); }
+        #ui { text-align: center; font-size: 18px; margin-top: 20px; text-shadow: 0 0 5px #33ff33; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(5,5,10,0.85); display: none; }
+        button { background: transparent; border: 2px solid #33ff33; color: #33ff33; padding: 10px 20px; font-family: monospace; font-size: 16px; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #33ff33; color: #05050a; }
+        .stat { color: #ff3366; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        LOOP: <span id="loop-ui">1</span>/5 | 
+        TIME LEFT: <span id="time-ui">10.00</span>s | 
+        SHARDS: <span id="shard-ui">0/3</span>
+    </div>
+    <div id="canvas-container">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div id="overlay">
+            <h1 id="title-ui" style="color: #ff3366; font-size: 32px;">PARADOX_DETECTED</h1>
+            <p id="msg-ui">You collided with a past iteration of yourself.</p>
+            <button onclick="resetGame()">RE-INITIALIZE TIME-LINE</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const loopUi = document.getElementById('loop-ui');
+        const timeUi = document.getElementById('time-ui');
+        const shardUi = document.getElementById('shard-ui');
+        const overlay = document.getElementById('overlay');
+        const titleUi = document.getElementById('title-ui');
+        const msgUi = document.getElementById('msg-ui');
+
+        // Config
+        const LOOP_DURATION = 10; // seconds
+        const MAX_LOOPS = 5;
+        const TARGET_SHARDS = 3;
+
+        // Game state
+        let currentLoop = 1;
+        let timeElapsed = 0;
+        let score = 0;
+        let isGameOver = false;
+        let lastTime = 0;
+
+        // Player & Recording
+        let player = { x: 300, y: 500, radius: 10, speed: 180 };
+        let currentHistory = []; // Array of {x, y} for current loop
+        let pastHistories = [];   // Array of arrays containing history of past loops
+
+        // Entities
+        let shards = [];
+        let drones = [
+            { x: 150, y: 150, vx: 120, vy: 0, radius: 12 },
+            { x: 450, y: 300, vx: -140, vy: 140, radius: 12 }
+        ];
+
+        // Controls
+        let keys = {};
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        function spawnShards() {
+            shards = [];
+            const positions = [
+                {x: 150, y: 300}, {x: 450, y: 300}, {x: 300, y: 150}, 
+                {x: 150, y: 450}, {x: 450, y: 450}, {x: 300, y: 350}
+            ];
+            // Pick 3 random positions securely
+            let shuffled = positions.sort(() => 0.5 - Math.random());
+            for(let i=0; i<TARGET_SHARDS; i++) {
+                shards.push({ ...shuffled[i], radius: 6, collected: false });
+            }
+        }
+
+        function resetGame() {
+            currentLoop = 1; timeElapsed = 0; pastHistories = []; currentHistory = [];
+            player.x = 300; player.y = 500; isGameOver = false;
+            overlay.style.display = 'none';
+            spawnShards();
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function triggerEnd(victory, message) {
+            isGameOver = true;
+            overlay.style.display = 'flex';
+            if (victory) {
+                titleUi.textContent = "SYSTEM_HACKED_SUCCESS";
+                titleUi.style.color = "#33ff33";
+                msgUi.textContent = "All temporal loops resolved without overlapping matrices.";
+            } else {
+                titleUi.textContent = "TIMELINE_COLLAPSED";
+                titleUi.style.color = "#ff3366";
+                msgUi.textContent = message;
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (isGameOver) return;
+            let dt = (timestamp - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; // Cap to prevent massive clipping jumps
+            lastTime = timestamp;
+
+            timeElapsed += dt;
+            let timeRemaining = Math.max(0, LOOP_DURATION - timeElapsed);
+
+            // 1. Update Player Movement
+            let dx = 0, dy = 0;
+            if (keys['w'] || keys['arrowup']) dy -= 1;
+            if (keys['s'] || keys['arrowdown']) dy += 1;
+            if (keys['a'] || keys['arrowleft']) dx -= 1;
+            if (keys['d'] || keys['arrowright']) dx += 1;
+
+            if (dx !== 0 && dy !== 0) { // Normalize diagonal velocity vector
+                dx *= 0.7071; dy *= 0.7071;
+            }
+
+            player.x += dx * player.speed * dt;
+            player.y += dy * player.speed * dt;
+
+            // Screen Boundaries Clamping
+            player.x = Math.max(player.radius, Math.min(600 - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(600 - player.radius, player.y));
+
+            // Record Frame State
+            currentHistory.push({ x: player.x, y: player.y });
+
+            // 2. Update Environmental Drones (Deterministic bounce movement)
+            drones.forEach(d => {
+                d.x += d.vx * dt; d.y += d.vy * dt;
+                if (d.x <= d.radius || d.x >= 600 - d.radius) d.vx *= -1;
+                if (d.y <= d.radius || d.y >= 600 - d.radius) d.vy *= -1;
+
+                // Collision with live player
+                if (Math.hypot(player.x - d.x, player.y - d.y) < player.radius + d.radius) {
+                    triggerEnd(false, "Vaporized by an active security firewall grid drone.");
+                }
+            });
+
+            // 3. Process Shard Interactions
+            shards.forEach(s => {
+                if (!s.collected && Math.hypot(player.x - s.x, player.y - s.y) < player.radius + s.radius) {
+                    s.collected = true;
+                }
+            });
+
+            // 4. Update and Process Past Echo Playbacks
+            let currentFrameIndex = currentHistory.length - 1;
+            pastHistories.forEach((history, idx) => {
+                // Fetch the exact historical frame or hold at last recorded position
+                let frame = history[Math.min(currentFrameIndex, history.length - 1)];
+                if (frame) {
+                    // Critical Vector Intersection Check: Did you run into your past self?
+                    let dist = Math.hypot(player.x - frame.x, player.y - frame.y);
+                    if (dist < player.radius * 2) {
+                        triggerEnd(false, `Temporal Paradox! You crossed paths with Echo Loop #${idx + 1}.`);
+                    }
+                }
+            });
+
+            // 5. Render Pass
+            ctx.clearRect(0, 0, 600, 600);
+
+            // Draw Decorative Grid Vectors
+            ctx.strokeStyle = '#111125'; ctx.lineWidth = 1;
+            for(let i=0; i<600; i+=40) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 600); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(600, i); ctx.stroke();
+            }
+
+            // Draw Shards
+            shards.forEach(s => {
+                if (!s.collected) {
+                    ctx.beginPath(); ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2);
+                    ctx.fillStyle = '#ffff33'; ctx.shadowBlur = 10; ctx.shadowColor = '#ffff33';
+                    ctx.fill();
+                }
+            });
+            ctx.shadowBlur = 0; // Clear glare effect
+
+            // Draw Past Echo Entities
+            pastHistories.forEach((history) => {
+                let frame = history[Math.min(currentFrameIndex, history.length - 1)];
+                if (frame) {
+                    ctx.beginPath(); ctx.arc(frame.x, frame.y, player.radius, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
+                    ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 1;
+                    ctx.fill(); ctx.stroke();
+                }
+            });
+
+            // Draw Automated Security Drones
+            drones.forEach(d => {
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.radius, 0, Math.PI*2);
+                ctx.fillStyle = '#ff3366'; ctx.fill();
+            });
+
+            // Draw Live Active Player
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
+            ctx.fillStyle = '#33ff33'; ctx.shadowBlur = 12; ctx.shadowColor = '#33ff33';
+            ctx.fill(); ctx.shadowBlur = 0;
+
+            // 6. Update UI Overlays
+            let collectedCount = shards.filter(s => s.collected).length;
+            loopUi.textContent = currentLoop;
+            timeUi.textContent = timeRemaining.toFixed(2);
+            shardUi.textContent = `${collectedCount}/${TARGET_SHARDS}`;
+
+            // 7. Loop Progression / Terminal Logic
+            if (timeElapsed >= LOOP_DURATION) {
+                if (collectedCount < TARGET_SHARDS) {
+                    triggerEnd(false, "Time matrix exhausted before locating all data nodes.");
+                } else if (currentLoop >= MAX_LOOPS) {
+                    triggerEnd(true);
+                } else {
+                    // Advance to next time loop sequence safely
+                    pastHistories.push([...currentHistory]);
+                    currentHistory = [];
+                    currentLoop++;
+                    timeElapsed = 0;
+                    player.x = 300; player.y = 500; // Reset starting vector
+                    spawnShards(); // Re-scramble keys for next iteration
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Boot
+        spawnShards();
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
